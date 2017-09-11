@@ -1,5 +1,6 @@
 package com.swisscom.cloud.sb.broker.services.kubernetes.facade.redis
 
+import com.swisscom.cloud.sb.broker.backup.SystemBackupOnShield
 import com.swisscom.cloud.sb.broker.backup.shield.ShieldTarget
 import com.swisscom.cloud.sb.broker.model.DeprovisionRequest
 import com.swisscom.cloud.sb.broker.model.ProvisionRequest
@@ -30,7 +31,7 @@ import org.springframework.stereotype.Component
 @Component
 @Slf4j
 @CompileStatic
-class KubernetesFacadeRedis extends AbstractKubernetesFacade {
+class KubernetesFacadeRedis extends AbstractKubernetesFacade implements SystemBackupOnShield {
     private final KubernetesTemplateManager kubernetesTemplateManager
     private final EndpointMapperParamsDecorated endpointMapperParamsDecorated
     private final KubernetesRedisConfig kubernetesRedisConfig
@@ -114,12 +115,12 @@ class KubernetesFacadeRedis extends AbstractKubernetesFacade {
     }
 
     @Override
-    String jobName(String jobPrefix, String serviceInstanceId) {
+    String systemBackupJobName(String jobPrefix, String serviceInstanceId) {
         "${jobPrefix}redis-${serviceInstanceId}"
     }
 
     @Override
-    String targetName(String targetPrefix, String serviceInstanceId) {
+    String systemBackupTargetName(String targetPrefix, String serviceInstanceId) {
         "${targetPrefix}redis-${serviceInstanceId}"
     }
 
