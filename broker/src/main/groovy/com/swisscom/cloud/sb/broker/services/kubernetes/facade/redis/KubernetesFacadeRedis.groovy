@@ -93,23 +93,22 @@ class KubernetesFacadeRedis extends AbstractKubernetesFacade implements SystemBa
         def masterAndShieldPorts = serviceResponses.findAll {
             it.spec.selector.role?.equals(KubernetesTemplateConstants.ROLE_MASTER.getValue())
         }.collect { it.spec.ports }.flatten() as List<Port>
-        def masterPortDetails = masterAndShieldPorts.findAll { it.name.equals("redis") }.collect {
+        def masterPort = masterAndShieldPorts.findAll { it.name.equals("redis") }.collect {
             ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_PORT_MASTER, it.nodePort.toString())
         }
-        def shieldPortDetails = masterAndShieldPorts.findAll { it.name.equals("shield-ssh") }.collect {
+        def shieldPort = masterAndShieldPorts.findAll { it.name.equals("shield-ssh") }.collect {
             ServiceDetail.from(ServiceDetailKey.SHIELD_AGENT_PORT, it.nodePort.toString())
         }
 
         def slavePorts = serviceResponses.findAll {
             it.spec.selector.role?.startsWith(KubernetesTemplateConstants.ROLE_SLAVE.getValue())
-        }.collect { it.spec.ports?.first()?.nodePort.toString() }
-        def serviceDetailsSlavePorts = slavePorts.collect {
+        }.collect { it.spec.ports?.first()?.nodePort.toString() }.collect {
             ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_PORT_SLAVE, it)
         }
 
         def serviceDetails = [ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_PASSWORD, redisPassword),
                               ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_HOST, kubernetesRedisConfig.getKubernetesRedisHost())] +
-                masterPortDetails + shieldPortDetails + serviceDetailsSlavePorts
+                masterPort + shieldPort + slavePorts
         return serviceDetails
     }
 
