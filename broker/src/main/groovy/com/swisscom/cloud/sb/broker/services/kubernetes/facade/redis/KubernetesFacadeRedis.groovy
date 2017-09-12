@@ -8,6 +8,7 @@ import com.swisscom.cloud.sb.broker.model.ServiceDetail
 import com.swisscom.cloud.sb.broker.model.ServiceInstance
 import com.swisscom.cloud.sb.broker.services.kubernetes.client.rest.KubernetesClient
 import com.swisscom.cloud.sb.broker.services.kubernetes.config.KubernetesConfig
+import com.swisscom.cloud.sb.broker.services.kubernetes.dto.Port
 import com.swisscom.cloud.sb.broker.services.kubernetes.dto.ServiceResponse
 import com.swisscom.cloud.sb.broker.services.kubernetes.endpoint.EndpointMapper
 import com.swisscom.cloud.sb.broker.services.kubernetes.endpoint.parameters.EndpointMapperParamsDecorated
@@ -89,10 +90,15 @@ class KubernetesFacadeRedis extends AbstractKubernetesFacade implements SystemBa
             it.getBody().asType(ServiceResponse.class)
         }
 
-        def masterPortList = serviceResponses.findAll {
+        def masterAndShieldPorts = serviceResponses.findAll {
             it.spec.selector.role?.equals(KubernetesTemplateConstants.ROLE_MASTER.getValue())
-        }.collect { it.spec.ports?.first()?.nodePort.toString() }
-        def masterPort = masterPortList.isEmpty() ? "" : masterPortList.first() ?: ""
+        }.collect { it.spec.ports }.flatten() as List<Port>
+        def masterPortDetails = masterAndShieldPorts.findAll { it.name.equals("redis") }.collect {
+            ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_PORT_MASTER, it.nodePort.toString())
+        }
+        def shieldPortDetails = masterAndShieldPorts.findAll { it.name.equals("shield-ssh") }.collect {
+            ServiceDetail.from(ServiceDetailKey.SHIELD_AGENT_PORT, it.nodePort.toString())
+        }
 
         def slavePorts = serviceResponses.findAll {
             it.spec.selector.role?.startsWith(KubernetesTemplateConstants.ROLE_SLAVE.getValue())
@@ -101,16 +107,15 @@ class KubernetesFacadeRedis extends AbstractKubernetesFacade implements SystemBa
             ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_PORT_SLAVE, it)
         }
 
-        def serviceDetails = [ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_HOST, kubernetesRedisConfig.getKubernetesRedisHost()),
-                              ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_PORT_MASTER, masterPort),
-                              ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_PASSWORD, redisPassword)
-        ] + serviceDetailsSlavePorts
+        def serviceDetails = [ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_PASSWORD, redisPassword),
+                              ServiceDetail.from(ServiceDetailKey.KUBERNETES_REDIS_HOST, kubernetesRedisConfig.getKubernetesRedisHost())] +
+                masterPortDetails + shieldPortDetails + serviceDetailsSlavePorts
         return serviceDetails
     }
 
     @Override
     ShieldTarget createShieldTarget(ServiceInstance serviceInstance) {
-        Integer portMaster = ServiceDetailsHelper.from(serviceInstance.details).getValue(ServiceDetailKey.KUBERNETES_REDIS_PORT_MASTER) as Integer
+        Integer portMaster = ServiceDetailsHelper.from(serviceInstance.details).getValue(ServiceDetailKey.SHIELD_AGENT_PORT) as Integer
         new KubernetesRedisShieldTarget(namespace: serviceInstance.guid, port: portMaster)
     }
 
@@ -126,6 +131,6 @@ class KubernetesFacadeRedis extends AbstractKubernetesFacade implements SystemBa
 
     @Override
     String shieldAgent(ServiceInstance serviceInstance) {
-        "${kubernetesRedisConfig.getKubernetesRedisHost()}:${ServiceDetailsHelper.from(serviceInstance.details).getValue(ServiceDetailKey.KUBERNETES_REDIS_PORT_MASTER)}"
+        "${kubernetesRedisConfig.getKubernetesRedisHost()}:${ServiceDetailsHelper.from(serviceInstance.details).getValue(ServiceDetailKey.SHIELD_AGENT_PORT)}"
     }
 }
